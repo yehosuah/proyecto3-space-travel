@@ -1,3 +1,4 @@
+pub mod camera;
 pub mod noise;
 pub mod simulation;
 pub mod world;
