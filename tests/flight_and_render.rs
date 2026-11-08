@@ -227,3 +227,35 @@ fn own_projection_maps_near_far_and_horizontal_edge() {
     let p = matrix * Vec4::new(10.0 * (c.fov / 2.0).tan() * 1.6, 0.0, -10.0, 1.0);
     assert!((p.x / p.w - 1.0).abs() < 0.00001);
 }
+
+#[test]
+fn parallel_rasterization_matches_serial_pixels_and_depth() {
+    use cosmos_gp::shader::{self, Body, Uniforms};
+    let mut serial = Framebuffer::new(96, 80);
+    let mut parallel = Framebuffer::new(96, 80);
+    parallel.workers = 4;
+    let matrix = Mat4::perspective_rh_gl(60.0f32.to_radians(), 1.2, 0.1, 100.0);
+    let vertices = [
+        Vec3::new(-2.0, -1.0, -3.0),
+        Vec3::new(1.0, -1.0, -2.0),
+        Vec3::new(0.0, 1.0, -1.0),
+    ]
+    .map(|p| vertex(p, matrix));
+    let u = Uniforms {
+        body: Body::Prop,
+        time: 0.0,
+        layers: 4,
+        center: Vec3::ZERO,
+        radius: 1.0,
+        ring_normal: Vec3::Y,
+        camera: Vec3::ZERO,
+        tint: Vec3::new(0.7, 0.3, 0.2),
+        rotation: glam::Quat::IDENTITY,
+        normal_mapping: false,
+    };
+    serial.triangle(vertices, true, |f| shader::shade(f, &u));
+    parallel.submit(vertices, true, u);
+    parallel.flush();
+    assert_eq!(serial.pixels, parallel.pixels);
+    assert_eq!(serial.depth, parallel.depth);
+}
