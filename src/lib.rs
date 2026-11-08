@@ -10,6 +10,7 @@ pub mod race;
 pub mod shader;
 pub mod simulation;
 pub mod sky;
+pub mod surface;
 pub mod world;
 
 pub const BACKGROUND: u32 = 0x02050c;
