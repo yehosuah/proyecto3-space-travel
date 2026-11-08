@@ -3,6 +3,7 @@ pub mod framebuffer;
 pub mod hud;
 pub mod mesh;
 pub mod noise;
+pub mod normal_map;
 pub mod simulation;
 pub mod sky;
 pub mod world;
