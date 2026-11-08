@@ -1,6 +1,7 @@
 pub mod camera;
 pub mod framebuffer;
 pub mod hud;
+pub mod material_field;
 pub mod mesh;
 pub mod noise;
 pub mod normal_map;
