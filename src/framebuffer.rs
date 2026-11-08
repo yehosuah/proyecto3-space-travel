@@ -90,6 +90,13 @@ impl Framebuffer {
             }
         });
     }
+    pub fn write_png(&self, path: impl AsRef<std::path::Path>) -> image::ImageResult<()> {
+        image::RgbImage::from_fn(self.width as u32, self.height as u32, |x, y| {
+            let c = self.pixels[y as usize * self.width + x as usize];
+            image::Rgb([(c >> 16) as u8, (c >> 8) as u8, c as u8])
+        })
+        .save_with_format(path, image::ImageFormat::Png)
+    }
 }
 fn clip_triangles(vertices: [ClipVertex; 3], mut emit: impl FnMut([ClipVertex; 3])) {
     if vertices.iter().any(|v| !v.clip.is_finite()) {
