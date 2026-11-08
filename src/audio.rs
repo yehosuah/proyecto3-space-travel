@@ -1,4 +1,5 @@
 //! Síntesis propia de propulsores y señales; raylib reproduce PCM y la pista local.
+use crate::simulation::Flight;
 use std::f32::consts::TAU;
 
 pub struct Synth {
@@ -52,6 +53,73 @@ impl Synth {
                 self.cue_left -= 1.0 / 48000.0;
             }
             *sample = value.clamp(-0.8, 0.8);
+        }
+    }
+}
+
+#[cfg(feature = "window")]
+pub struct Audio<'a> {
+    stream: raylib::audio::AudioStream<'a>,
+    music: Option<raylib::audio::Music<'a>>,
+    synth: Synth,
+    buffer: Vec<f32>,
+    pub music_volume: f32,
+    pub fx_volume: f32,
+    pub muted: bool,
+    pub track_loaded: bool,
+}
+#[cfg(feature = "window")]
+impl<'a> Audio<'a> {
+    pub fn new(device: &'a raylib::audio::RaylibAudio, path: Option<&std::path::Path>) -> Self {
+        device.set_audio_stream_buffer_size_default(2048);
+        let stream = device.new_audio_stream(48000, 32, 1);
+        stream.play();
+        let mut music = path.and_then(|path| match device.new_music(&path.to_string_lossy()) {
+            Ok(m) => Some(m),
+            Err(e) => {
+                eprintln!("Pista local: {e:?}");
+                None
+            }
+        });
+        if let Some(m) = &mut music {
+            m.set_looping(true);
+            m.set_volume(0.28);
+            m.play_stream();
+        }
+        let track_loaded = music.is_some();
+        Self {
+            stream,
+            music,
+            synth: Synth::default(),
+            buffer: vec![0.0; 2048],
+            music_volume: 0.28,
+            fx_volume: 0.55,
+            muted: false,
+            track_loaded,
+        }
+    }
+    pub fn tick(&mut self, ship: &Flight, paused: bool, cue: u8) {
+        if cue > 0 {
+            self.synth.signal(cue);
+        }
+        let gain = if self.muted { 0.0 } else { 1.0 };
+        self.stream.set_volume(self.fx_volume * gain);
+        while self.stream.is_processed() {
+            self.synth.fill(
+                &mut self.buffer,
+                ship.velocity.length(),
+                ship.thrust_amount,
+                ship.boost_amount,
+                !paused,
+            );
+            if let Err(e) = self.stream.update(&self.buffer) {
+                eprintln!("PCM: {e:?}");
+                break;
+            }
+        }
+        if let Some(m) = &self.music {
+            m.update_stream();
+            m.set_volume(self.music_volume * gain * if paused { 0.25 } else { 1.0 });
         }
     }
 }
