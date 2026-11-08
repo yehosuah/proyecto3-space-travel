@@ -58,4 +58,14 @@ impl Camera {
             Mat4::from_quat(self.rotation.conjugate()) * Mat4::from_translation(-self.position);
         projection * view
     }
+    pub fn sphere_visible(&self, center: Vec3, radius: f32, aspect: f32) -> bool {
+        let p = self.rotation.conjugate() * (center - self.position);
+        let depth = -p.z;
+        let half = (self.fov * 0.5).tan();
+        if depth + radius < 0.4 || depth - radius > 20000.0 {
+            return false;
+        }
+        p.x.abs() <= depth * half * aspect + radius * (1.0 + (half * aspect).powi(2)).sqrt()
+            && p.y.abs() <= depth * half + radius * (1.0 + half * half).sqrt()
+    }
 }
