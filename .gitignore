@@ -1,0 +1,12 @@
+/target/
+/renders/
+/deliverable/*
+!/deliverable/COSMOS_GP_DEMO.mp4
+!/deliverable/video-evidencia.json
+!/deliverable/trayectoria.csv
+/assets/audio/local.*
+/session-best.txt
+/docs/ACUERDOS.md
+__pycache__/
+.DS_Store
+*.app/

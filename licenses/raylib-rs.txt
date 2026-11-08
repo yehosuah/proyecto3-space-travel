@@ -1,0 +1,4 @@
+raylib-rs 6.0.0 y raylib-sys 6.0.0
+Repositorio: https://github.com/raylib-rs/raylib-rs
+Licencia declarada en sus manifiestos Cargo: Zlib.
+Los paquetes de Cargo utilizados no incluyen un LICENSE separado para los bindings.
