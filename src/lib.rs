@@ -1,5 +1,6 @@
 pub mod camera;
 pub mod framebuffer;
+pub mod hoop;
 pub mod hud;
 pub mod material_field;
 pub mod mesh;
