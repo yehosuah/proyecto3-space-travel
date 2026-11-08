@@ -1,0 +1,18 @@
+[package]
+name = "cosmos-gp"
+version = "0.1.0"
+edition = "2021"
+description = "Exploración y pilotaje espacial con un renderizador por software propio"
+
+[features]
+default = ["window"]
+window = ["dep:raylib"]
+
+[dependencies]
+glam = "=0.27.0"
+image = { version = "=0.24.9", default-features = false, features = ["png"] }
+raylib = { version = "=6.0.0", optional = true, features = ["SUPPORT_IMAGE_GENERATION", "SUPPORT_MODULE_RTEXTURES", "USE_AUDIO", "SUPPORT_MODULE_RAUDIO", "SUPPORT_FILEFORMAT_WAV", "SUPPORT_FILEFORMAT_OGG", "SUPPORT_FILEFORMAT_MP3"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
