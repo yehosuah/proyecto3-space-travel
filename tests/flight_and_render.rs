@@ -204,6 +204,7 @@ fn camera_culling_keeps_intersecting_spheres() {
         rotation: glam::Quat::IDENTITY,
         fov: 60.0f32.to_radians(),
         front: true,
+        anchor: Vec3::ZERO,
     };
     assert!(camera.sphere_visible(Vec3::new(0.0, 0.0, -10.0), 1.0, 1.6));
     assert!(!camera.sphere_visible(Vec3::new(0.0, 0.0, 10.0), 1.0, 1.6));
@@ -218,6 +219,7 @@ fn own_projection_maps_near_far_and_horizontal_edge() {
         rotation: glam::Quat::IDENTITY,
         fov: 60.0f32.to_radians(),
         front: true,
+        anchor: Vec3::ZERO,
     };
     let matrix = c.matrix(1.6);
     for (depth, expected) in [(0.4, -1.0), (20000.0, 1.0)] {
@@ -258,4 +260,22 @@ fn parallel_rasterization_matches_serial_pixels_and_depth() {
     parallel.flush();
     assert_eq!(serial.pixels, parallel.pixels);
     assert_eq!(serial.depth, parallel.depth);
+}
+
+#[test]
+fn chase_camera_stays_behind_ship_during_fast_reverse() {
+    let mut ship = Flight::new();
+    ship.position = Vec3::splat(10000.0);
+    ship.rotation = glam::Quat::IDENTITY;
+    ship.velocity = Vec3::Z * 76.0;
+    ship.assist = false;
+    ship.gravity = false;
+    let mut camera = Camera::new(&ship);
+    for _ in 0..240 {
+        ship.update(Input::default(), 1.0 / 60.0);
+        camera.update(&ship, 1.0 / 60.0);
+        let offset = camera.position - ship.position;
+        assert!(offset.dot(ship.forward()) < -8.5);
+        assert!(offset.length() > 9.0);
+    }
 }

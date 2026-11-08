@@ -9,6 +9,7 @@ pub struct Camera {
     pub rotation: Quat,
     pub fov: f32,
     pub front: bool,
+    pub anchor: Vec3,
 }
 impl Camera {
     pub fn new(ship: &Flight) -> Self {
@@ -17,9 +18,14 @@ impl Camera {
             rotation: ship.rotation,
             fov: 62.0_f32.to_radians(),
             front: false,
+            anchor: ship.position,
         }
     }
     pub fn update(&mut self, ship: &Flight, dt: f32) {
+        // Seguir la traslación evita que el retardo atraviese la nave al retroceder.
+        // El offset y la orientación conservan su interpolación suave.
+        self.position += ship.position - self.anchor;
+        self.anchor = ship.position;
         let target = if self.front {
             ship.position + ship.forward() * 2.4 + ship.up() * 0.3
         } else {
