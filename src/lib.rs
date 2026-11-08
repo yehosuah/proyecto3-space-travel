@@ -4,6 +4,7 @@ pub mod hud;
 pub mod mesh;
 pub mod noise;
 pub mod simulation;
+pub mod sky;
 pub mod world;
 
 pub const BACKGROUND: u32 = 0x02050c;
