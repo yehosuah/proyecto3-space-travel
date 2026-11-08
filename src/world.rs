@@ -37,3 +37,19 @@ pub fn planet(index: usize, time: f64) -> BodyState {
 pub fn ring_tilt() -> Quat {
     Quat::from_rotation_z(-0.34) * Quat::from_rotation_x(0.53)
 }
+pub fn star(time: f64) -> BodyState {
+    BodyState {
+        center: Vec3::ZERO,
+        radius: 42.0 * SCALE,
+        rotation: Quat::from_rotation_y(time as f32 * 0.04),
+    }
+}
+pub fn moon(time: f64) -> BodyState {
+    let p = planet(0, time);
+    let a = time as f32 * 0.035 + 1.4;
+    BodyState {
+        center: p.center + Vec3::new(a.cos() * 61.0, a.sin() * 19.0, a.sin() * 61.0) * SCALE,
+        radius: 5.5 * SCALE,
+        rotation: Quat::from_rotation_y(time as f32 * 0.09),
+    }
+}
