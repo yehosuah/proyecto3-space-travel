@@ -53,3 +53,21 @@ pub fn moon(time: f64) -> BodyState {
         rotation: Quat::from_rotation_y(time as f32 * 0.09),
     }
 }
+
+pub fn closest(position: Vec3, time: f64) -> (usize, f32) {
+    (0..2)
+        .map(|i| {
+            (
+                i,
+                position.distance(planet(i, time).center) - planet(i, time).radius,
+            )
+        })
+        .min_by(|a, b| a.1.total_cmp(&b.1))
+        .unwrap()
+}
+
+pub fn collision_bodies(time: f64) -> [BodyState; 4] {
+    let mut monaco = planet(0, time);
+    monaco.radius *= 1.075;
+    [star(time), monaco, planet(1, time), moon(time)]
+}
