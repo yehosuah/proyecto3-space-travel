@@ -8,6 +8,7 @@ pub mod mesh;
 pub mod noise;
 pub mod normal_map;
 pub mod race;
+pub mod render;
 pub mod shader;
 pub mod simulation;
 pub mod sky;
