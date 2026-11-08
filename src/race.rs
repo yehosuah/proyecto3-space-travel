@@ -43,3 +43,12 @@ pub fn world_gate(index: usize, time: f64) -> Gate {
         radius: g.radius,
     }
 }
+pub fn crossing(a: Vec3, b: Vec3, g: Gate) -> Option<f32> {
+    let da = (a - g.center).dot(g.normal);
+    let db = (b - g.center).dot(g.normal);
+    if da > 0.0 || db <= 0.0 || db - da < 1e-6 {
+        return None;
+    }
+    let fraction = -da / (db - da);
+    ((a.lerp(b, fraction) - g.center).length() <= g.radius).then_some(fraction)
+}
