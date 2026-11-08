@@ -3,10 +3,12 @@ use crate::{
     noise::{fbm, smooth},
 };
 use glam::{Quat, Vec3};
+use std::f32::consts::TAU;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Body {
     Star,
+    Rocky,
     Ship,
     Prop,
     Gate,
@@ -44,6 +46,7 @@ fn rim(f: Fragment, u: &Uniforms) -> f32 {
 pub fn shade(f: Fragment, u: &Uniforms) -> Option<Vec3> {
     Some(match u.body {
         Body::Star => star(f, u),
+        Body::Rocky => rocky(f, u),
         Body::Ship => {
             let diffuse = lit(u.tint, f);
             let view = (u.camera - f.world).normalize_or_zero();
@@ -103,4 +106,66 @@ fn star(f: Fragment, u: &Uniforms) -> Vec3 {
                 .dot((u.camera - f.world).normalize_or_zero())
                 .abs()
                 .sqrt())
+}
+
+fn rocky(f: Fragment, u: &Uniforms) -> Vec3 {
+    let p = f.object.normalize();
+    let longitude = p.z.atan2(p.x);
+    let field = crate::material_field::sample(p);
+    let terrain = field.x;
+    // 1. La paleta rojo y marfil de Mónaco forma dos hemisferios geológicos.
+    let red = smooth(-0.08, 0.11, p.y + (terrain - 0.5) * 0.22);
+    let mut c = rgb(0.73, 0.71, 0.64).lerp(rgb(0.48, 0.082, 0.075), red);
+    // 2. Mármol fracturado, regolito oscuro y cuencas de impacto.
+    if u.layers >= 2 {
+        let mineral = field.y;
+        let veins = 1.0 - smooth(0.018, 0.07, (terrain - 0.48).abs());
+        c *= 0.56 + 0.54 * mineral;
+        c = c.lerp(rgb(0.16, 0.11, 0.13), veins * 0.45);
+        for (center, size) in [
+            (Vec3::new(-0.4, 0.5, 0.77).normalize(), 0.19),
+            (Vec3::new(0.4, -0.4, 0.82).normalize(), 0.14),
+            (Vec3::new(0.15, 0.7, 0.7).normalize(), 0.09),
+        ] {
+            let d = p.distance(center) / size;
+            c *= 1.0 - (1.0 - smooth(0.55, 0.97, d)) * 0.5;
+            c += rgb(0.18, 0.13, 0.10) * (1.0 - smooth(0.08, 0.24, (d - 1.0).abs()));
+        }
+    }
+    let mut emission = Vec3::ZERO;
+    // 3. Circuito de asfalto sinuoso con pianos alternados en rojo y blanco.
+    if u.layers >= 3 {
+        let route = p.y + 0.19 * (longitude * 3.0).sin() + 0.075 * (longitude * 7.0 + 0.4).sin();
+        let d = route.abs();
+        let track = 1.0 - smooth(0.025, 0.033, d);
+        let curb = smooth(0.03, 0.036, d) * (1.0 - smooth(0.047, 0.053, d));
+        let paint = if (longitude * 42.0 / TAU).floor() as i32 % 2 == 0 {
+            rgb(0.95, 0.93, 0.83)
+        } else {
+            rgb(0.9, 0.018, 0.03)
+        };
+        c = c.lerp(rgb(0.045, 0.055, 0.068), track);
+        c = c.lerp(paint, curb);
+        let lane = 1.0 - smooth(0.0015, 0.004, d);
+        c = c.lerp(rgb(0.9, 0.72, 0.39), lane * 0.8);
+    }
+    // 4. Puertos turquesa y brillo costero en un mundo imaginario de Mónaco.
+    if u.layers >= 4 {
+        let ocean = (1.0 - smooth(0.33, 0.42, terrain)) * smooth(-0.15, -0.5, p.y);
+        c = c.lerp(rgb(0.018, 0.30, 0.36), ocean);
+        emission += rgb(0.01, 0.25, 0.32) * ocean * 0.20;
+        emission += rgb(0.11, 0.39, 0.53) * rim(f, u) * 0.48;
+    }
+    let f = if u.normal_mapping {
+        let mut mapped = crate::normal_map::mapped(f, u.rotation);
+        let proximity = (1.0 - u.camera.distance(f.world) / (u.radius * 2.0)).clamp(0.0, 1.0);
+        mapped.normal = f
+            .normal
+            .lerp(mapped.normal, 0.15 + proximity * 0.65)
+            .normalize();
+        mapped
+    } else {
+        f
+    };
+    lit(c, f) + emission
 }
