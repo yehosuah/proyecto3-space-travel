@@ -1,5 +1,6 @@
 pub mod camera;
 pub mod framebuffer;
+pub mod hud;
 pub mod mesh;
 pub mod noise;
 pub mod simulation;
