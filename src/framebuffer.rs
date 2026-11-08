@@ -97,6 +97,29 @@ impl Framebuffer {
         })
         .save_with_format(path, image::ImageFormat::Png)
     }
+    pub fn blend(&mut self, x: i32, y: i32, color: u32, alpha: f32) {
+        if x < 0 || y < 0 || x >= self.width as i32 || y >= self.height as i32 {
+            return;
+        }
+        let i = y as usize * self.width + x as usize;
+        self.pixels[i] =
+            to_rgb(from_rgb(self.pixels[i]).lerp(from_rgb(color), alpha.clamp(0.0, 1.0)));
+    }
+    pub fn line(&mut self, a: (f32, f32), b: (f32, f32), color: u32, alpha: f32) {
+        let steps = (b.0 - a.0).abs().max((b.1 - a.1).abs()).ceil() as usize;
+        if steps > self.width.max(self.height) * 4 {
+            return;
+        }
+        for i in 0..=steps {
+            let t = i as f32 / steps.max(1) as f32;
+            self.blend(
+                (a.0 + (b.0 - a.0) * t) as i32,
+                (a.1 + (b.1 - a.1) * t) as i32,
+                color,
+                alpha,
+            );
+        }
+    }
 }
 fn clip_triangles(vertices: [ClipVertex; 3], mut emit: impl FnMut([ClipVertex; 3])) {
     if vertices.iter().any(|v| !v.clip.is_finite()) {
