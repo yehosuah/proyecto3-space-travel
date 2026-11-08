@@ -208,6 +208,232 @@ fn resource_root() -> Result<PathBuf, Box<dyn Error>> {
         .ok_or_else(|| "No se encuentran assets/models/Nave_Aster.obj junto al programa".into())
 }
 
+fn capture_path() -> Result<PathBuf, Box<dyn Error>> {
+    let executable = std::env::current_exe()?;
+    let directory = executable.parent().ok_or("Ejecutable sin directorio")?;
+    let output = if directory.ends_with("Contents/MacOS") {
+        directory.join("../../..")
+    } else {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+    };
+    Ok(output.join("renders/captura.png"))
+}
+
+#[cfg(feature = "window")]
+fn run_window(
+    renderer: Renderer,
+    mut frame: Framebuffer,
+    mut ship: Flight,
+    mut camera: Camera,
+    o: Options,
+) -> Result<(), Box<dyn Error>> {
+    use cosmos_gp::simulation::Input;
+    use raylib::prelude::{
+        Color, Image, KeyboardKey, MouseButton, RaylibAudio, RaylibDraw, RaylibTexture2D,
+        Rectangle, TextureFilter, Vector2,
+    };
+    let (mut window, thread) = raylib::init()
+        .size(1440, 900)
+        .title("COSMOS / GP — ASTER R")
+        .resizable()
+        .build();
+    window.set_target_fps(60);
+    let image = Image::gen_image_color(frame.width as i32, frame.height as i32, Color::BLACK);
+    let mut texture = window.load_texture_from_image(&thread, &image)?;
+    texture.set_texture_filter(&thread, TextureFilter::TEXTURE_FILTER_BILINEAR);
+    let mut rgba = vec![255u8; frame.width * frame.height * 4];
+    let mut options = RenderOptions {
+        ui: o.ui,
+        lod: o.lod,
+        culling: o.culling,
+        normal_mapping: o.normal_mapping,
+        ..RenderOptions::default()
+    };
+    let mut previous = Instant::now();
+    let mut count = 0;
+    let mut paused = false;
+    let mut fps = 60.0f32;
+    let device = match RaylibAudio::init_audio_device() {
+        Ok(device) => Some(device),
+        Err(e) => {
+            eprintln!("Audio no disponible: {e:?}");
+            None
+        }
+    };
+    let music_path = o
+        .music
+        .as_ref()
+        .map(PathBuf::from)
+        .unwrap_or(resource_root()?.join("assets/audio/local.mp3"));
+    let mut audio = device.as_ref().map(|device| {
+        cosmos_gp::audio::Audio::new(device, music_path.is_file().then_some(music_path.as_path()))
+    });
+    let best_path = capture_path()?
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("session-best.txt");
+    let mut race = Race::load(&best_path);
+    if o.shot == "circuito" {
+        race.prepare(&mut ship);
+        camera = Camera::new(&ship);
+    }
+    while !window.window_should_close() {
+        let now = Instant::now();
+        let dt = now.duration_since(previous).as_secs_f64();
+        previous = now;
+        fps = fps * 0.93 + (1.0 / dt.max(0.001)) as f32 * 0.07;
+        options.fps = fps;
+        if window.is_key_pressed(KeyboardKey::KEY_P) {
+            paused = !paused;
+        }
+        if window.is_key_pressed(KeyboardKey::KEY_T) {
+            ship.assist = !ship.assist;
+        }
+        if window.is_key_pressed(KeyboardKey::KEY_O) {
+            ship.toggle_local();
+        }
+        if window.is_key_pressed(KeyboardKey::KEY_C) {
+            camera.front = !camera.front;
+        }
+        if window.is_key_pressed(KeyboardKey::KEY_TAB) {
+            options.target = (options.target + 1) % 2;
+        }
+        if window.is_key_pressed(KeyboardKey::KEY_H) {
+            options.help = !options.help;
+        }
+        if window.is_key_pressed(KeyboardKey::KEY_F3) {
+            options.debug = !options.debug;
+        }
+        if window.is_key_pressed(KeyboardKey::KEY_F4) {
+            options.culling = !options.culling;
+        }
+        if window.is_key_pressed(KeyboardKey::KEY_F5) {
+            options.lod = !options.lod;
+        }
+        if window.is_key_pressed(KeyboardKey::KEY_F6) {
+            options.normal_mapping = !options.normal_mapping;
+        }
+        if window.is_key_pressed(KeyboardKey::KEY_G) {
+            ship.gravity = !ship.gravity;
+        }
+        if window.is_key_pressed(KeyboardKey::KEY_U) {
+            options.ui = !options.ui;
+        }
+        if window.is_key_pressed(KeyboardKey::KEY_N) {
+            race.prepare(&mut ship);
+            camera = Camera::new(&ship);
+            paused = false;
+            options.help = false;
+        }
+        if window.is_key_pressed(KeyboardKey::KEY_BACKSPACE) {
+            race.cancel();
+        }
+        if let Some(a) = &mut audio {
+            if window.is_key_pressed(KeyboardKey::KEY_M) {
+                a.muted = !a.muted;
+            }
+            if window.is_key_pressed(KeyboardKey::KEY_LEFT_BRACKET) {
+                a.music_volume = (a.music_volume - 0.07).max(0.0);
+            }
+            if window.is_key_pressed(KeyboardKey::KEY_RIGHT_BRACKET) {
+                a.music_volume = (a.music_volume + 0.07).min(1.0);
+            }
+            if window.is_key_pressed(KeyboardKey::KEY_MINUS) {
+                a.fx_volume = (a.fx_volume - 0.07).max(0.0);
+            }
+            if window.is_key_pressed(KeyboardKey::KEY_EQUAL) {
+                a.fx_volume = (a.fx_volume + 0.07).min(1.0);
+            }
+            options.music_volume = a.music_volume;
+            options.fx_volume = a.fx_volume;
+            options.muted = a.muted;
+            options.track_loaded = a.track_loaded;
+        }
+        if window.is_key_pressed(KeyboardKey::KEY_F8) {
+            std::process::Command::new("open")
+                .arg("https://www.youtube.com/watch?v=8AYy-BcjRXg")
+                .spawn()?;
+        }
+        if window.is_key_pressed(KeyboardKey::KEY_F12) {
+            save(&frame, &capture_path()?)?;
+        }
+        options.paused = paused || !window.is_window_focused() || options.help;
+        let mut cue = 0;
+        if !options.paused {
+            let axis = |positive, negative| {
+                (window.is_key_down(positive) as i32 - window.is_key_down(negative) as i32) as f32
+            };
+            let mouse = window.get_mouse_delta();
+            let looking = window.is_mouse_button_down(MouseButton::MOUSE_BUTTON_RIGHT);
+            let mouse_scale = 0.00042 / dt.max(1.0 / 240.0) as f32;
+            let input = Input {
+                thrust: axis(KeyboardKey::KEY_W, KeyboardKey::KEY_S),
+                strafe: axis(KeyboardKey::KEY_D, KeyboardKey::KEY_A),
+                lift: axis(KeyboardKey::KEY_R, KeyboardKey::KEY_F),
+                yaw: axis(KeyboardKey::KEY_LEFT, KeyboardKey::KEY_RIGHT)
+                    - if looking { mouse.x * mouse_scale } else { 0.0 },
+                pitch: axis(KeyboardKey::KEY_UP, KeyboardKey::KEY_DOWN)
+                    - if looking { mouse.y * mouse_scale } else { 0.0 },
+                roll: axis(KeyboardKey::KEY_Q, KeyboardKey::KEY_E),
+                boost: window.is_key_down(KeyboardKey::KEY_LEFT_SHIFT),
+                brake: window.is_key_down(KeyboardKey::KEY_SPACE),
+                drift: window.is_key_down(KeyboardKey::KEY_LEFT_ALT),
+            };
+            let previous_position = ship.position;
+            let previous_time = ship.time;
+            ship.update(
+                if race.phase == Phase::Countdown {
+                    Input::default()
+                } else {
+                    input
+                },
+                dt,
+            );
+            cue = race.update(&mut ship, previous_position, previous_time, dt);
+            if cue == 2 {
+                if let Err(e) = race.save(&best_path) {
+                    eprintln!("No se pudo guardar la marca: {e}");
+                }
+            }
+            camera.update(&ship, dt as f32);
+        }
+        options.race = race.view();
+        if let Some(a) = &mut audio {
+            a.tick(&ship, options.paused, cue);
+        }
+        renderer.render(&mut frame, &camera, &ship, options);
+        for (pixel, rgba) in frame.pixels.iter().zip(rgba.chunks_exact_mut(4)) {
+            rgba[0] = (pixel >> 16) as u8;
+            rgba[1] = (pixel >> 8) as u8;
+            rgba[2] = *pixel as u8;
+        }
+        texture.update_texture(&rgba)?;
+        let width = window.get_screen_width() as f32;
+        let height = window.get_screen_height() as f32;
+        let scale = (width / frame.width as f32).min(height / frame.height as f32);
+        let (w, h) = (frame.width as f32 * scale, frame.height as f32 * scale);
+        {
+            let mut drawing = window.begin_drawing(&thread);
+            drawing.clear_background(Color::BLACK);
+            drawing.draw_texture_pro(
+                &texture,
+                Rectangle::new(0.0, 0.0, frame.width as f32, frame.height as f32),
+                Rectangle::new((width - w) * 0.5, (height - h) * 0.5, w, h),
+                Vector2::zero(),
+                0.0,
+                Color::WHITE,
+            );
+        }
+        count += 1;
+        if o.frames.is_some_and(|n| count >= n) {
+            break;
+        }
+    }
+    Ok(())
+}
+#[cfg(not(feature = "window"))]
 fn run_window(
     _: Renderer,
     _: Framebuffer,
