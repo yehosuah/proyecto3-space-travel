@@ -74,3 +74,27 @@ pub fn sphere(slices: usize, stacks: usize, deform: bool) -> Mesh {
         flat: false,
     }
 }
+
+pub fn rings(segments: usize, inner: f32, outer: f32) -> Mesh {
+    let mut vertices = Vec::new();
+    let mut faces = Vec::new();
+    for i in 0..segments {
+        let t = TAU * i as f32 / segments as f32;
+        for radius in [inner, outer] {
+            vertices.push(Vertex {
+                position: Vec3::new(t.cos() * radius, 0.0, t.sin() * radius),
+                normal: Vec3::Y,
+            });
+        }
+        let a = 2 * i;
+        let b = 2 * ((i + 1) % segments);
+        faces.push([a, a + 1, b]);
+        faces.push([a + 1, b + 1, b]);
+    }
+    Mesh {
+        vertices,
+        faces,
+        colors: vec![],
+        flat: false,
+    }
+}
