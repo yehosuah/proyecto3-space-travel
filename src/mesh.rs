@@ -24,6 +24,42 @@ pub fn terrain_height(p: Vec3) -> f32 {
     1.0 + (fbm(p * 4.5 + Vec3::splat(12.3), 4) - 0.48) * 0.14
 }
 
+/// Intersección radial con los mismos triángulos del LOD cercano, para apoyar bases.
+pub fn surface_radius(p: Vec3) -> f32 {
+    let phi = p.y.clamp(-1.0, 1.0).acos();
+    let theta = p.z.atan2(p.x).rem_euclid(TAU);
+    let j = (phi / PI * 88.0).floor().min(87.0);
+    let i = (theta / TAU * 144.0).floor();
+    let vertex = |x: f32, y: f32| {
+        let a = TAU * x / 144.0;
+        let b = PI * y / 88.0;
+        let d = Vec3::new(b.sin() * a.cos(), b.cos(), b.sin() * a.sin());
+        d * terrain_height(d)
+    };
+    let v = [
+        vertex(i, j),
+        vertex(i + 1.0, j),
+        vertex(i, j + 1.0),
+        vertex(i + 1.0, j + 1.0),
+    ];
+    for [a, b, c] in [[v[0], v[1], v[2]], [v[1], v[3], v[2]]] {
+        let e1 = b - a;
+        let e2 = c - a;
+        let h = p.cross(e2);
+        let determinant = e1.dot(h);
+        if determinant.abs() < 1e-9 {
+            continue;
+        }
+        let inv = 1.0 / determinant;
+        let q = (-a).cross(e1);
+        let u = (-a).dot(h) * inv;
+        let w = p.dot(q) * inv;
+        if u >= -0.00001 && w >= -0.00001 && u + w <= 1.00001 {
+            return e2.dot(q) * inv;
+        }
+    }
+    terrain_height(p)
+}
 
 /// La malla se genera en CPU; el relieve desplaza vértices antes de proyectar.
 pub fn sphere(slices: usize, stacks: usize, deform: bool) -> Mesh {
