@@ -1,0 +1,21 @@
+inicio
+Captura: renders/etapa2-inicio.png
+BENCHMARK CPU 960x600 frames=97 mean_ms=8.08 p95_ms=8.60 theoretical_render_fps=123.8 tris=44074 fragments=178519
+
+puerto
+Captura: renders/etapa2-puerto.png
+BENCHMARK CPU 960x600 frames=97 mean_ms=15.86 p95_ms=24.40 theoretical_render_fps=63.1 tris=29222 fragments=402808
+
+superficie
+Captura: renders/etapa2-superficie.png
+BENCHMARK CPU 960x600 frames=97 mean_ms=16.62 p95_ms=20.41 theoretical_render_fps=60.2 tris=31030 fragments=614684
+
+circuito
+Captura: renders/etapa2-circuito.png
+BENCHMARK CPU 960x600 frames=97 mean_ms=6.63 p95_ms=7.59 theoretical_render_fps=150.7 tris=35990 fragments=77308
+
+inicio --no-lod --no-culling
+BENCHMARK CPU 960x600 frames=97 mean_ms=11.68 p95_ms=14.04 theoretical_render_fps=85.6 tris=144162 fragments=178783
+
+circuito --no-lod --no-culling
+BENCHMARK CPU 960x600 frames=97 mean_ms=10.21 p95_ms=14.13 theoretical_render_fps=98.0 tris=147618 fragments=77337
