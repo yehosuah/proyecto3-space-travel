@@ -2,7 +2,7 @@ use crate::{
     simulation::{look_rotation, Flight},
     world,
 };
-use glam::{Quat, Vec3};
+use glam::{Mat4, Quat, Vec3, Vec4};
 
 pub struct Camera {
     pub position: Vec3,
@@ -43,5 +43,19 @@ impl Camera {
         };
         self.rotation = self.rotation.slerp(desired, 1.0 - (-12.0 * dt).exp());
         self.fov = (62.0 + (ship.velocity.length() / 195.0).min(1.0) * 11.0).to_radians();
+    }
+    pub fn matrix(&self, aspect: f32) -> Mat4 {
+        let (near, far) = (0.4, 20000.0);
+        let focal = 1.0 / (self.fov * 0.5).tan();
+        // Proyección propia: mano derecha, profundidad NDC entre -1 y +1.
+        let projection = Mat4::from_cols(
+            Vec4::new(focal / aspect, 0.0, 0.0, 0.0),
+            Vec4::new(0.0, focal, 0.0, 0.0),
+            Vec4::new(0.0, 0.0, (far + near) / (near - far), -1.0),
+            Vec4::new(0.0, 0.0, 2.0 * far * near / (near - far), 0.0),
+        );
+        let view =
+            Mat4::from_quat(self.rotation.conjugate()) * Mat4::from_translation(-self.position);
+        projection * view
     }
 }
