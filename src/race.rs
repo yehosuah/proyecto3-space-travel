@@ -4,7 +4,7 @@ use crate::{
     world,
 };
 use glam::Vec3;
-use std::f32::consts::TAU;
+use std::{f32::consts::TAU, path::Path};
 
 pub const GATE_COUNT: usize = 24;
 #[derive(Clone, Copy, Debug)]
@@ -96,6 +96,25 @@ impl Default for Race {
     }
 }
 impl Race {
+    pub fn load(path: &Path) -> Self {
+        let best = std::fs::read_to_string(path)
+            .ok()
+            .and_then(|s| {
+                s.strip_prefix("MONACO-24-V1 ")
+                    .and_then(|s| s.trim().parse::<f64>().ok())
+            })
+            .filter(|t| t.is_finite() && *t > 0.0);
+        Self {
+            best,
+            ..Self::default()
+        }
+    }
+    pub fn save(&self, path: &Path) -> std::io::Result<()> {
+        if let Some(best) = self.best {
+            std::fs::write(path, format!("MONACO-24-V1 {best:.6}\n"))?;
+        }
+        Ok(())
+    }
     pub fn prepare(&mut self, ship: &mut Flight) {
         self.phase = Phase::Countdown;
         self.countdown = 3.0;
