@@ -1,8 +1,9 @@
 use cosmos_gp::{
+    framebuffer::{ClipVertex, Framebuffer},
     simulation::{look_rotation, Flight, Input},
     world,
 };
-use glam::Vec3;
+use glam::{Mat4, Vec3, Vec4};
 
 #[test]
 fn flight_is_independent_of_render_frame_rate() {
@@ -105,4 +106,92 @@ fn orbit_mode_tracks_the_moving_planet() {
     let distance = s.position.distance(world::planet(0, s.time).center);
     assert!((distance - orbit_radius).abs() < 1.0, "distance={distance}");
     assert!(s.position.is_finite() && s.rotation.is_finite());
+}
+
+fn vertex(p: Vec3, projection: Mat4) -> ClipVertex {
+    ClipVertex {
+        clip: projection * p.extend(1.0),
+        world: p,
+        object: p,
+        normal: Vec3::Z,
+    }
+}
+
+#[test]
+fn perspective_interpolation_is_independent_of_quad_diagonal() {
+    let matrix = Mat4::perspective_rh_gl(65.0f32.to_radians(), 1.0, 0.1, 100.0);
+    let v = [
+        Vec3::new(-1.0, -1.0, -2.0),
+        Vec3::new(1.0, -1.0, -2.0),
+        Vec3::new(1.0, 1.0, -5.0),
+        Vec3::new(-1.0, 1.0, -5.0),
+    ]
+    .map(|p| vertex(p, matrix));
+    let mut a = Framebuffer::new(80, 80);
+    let mut b = Framebuffer::new(80, 80);
+    let shade = |f: cosmos_gp::framebuffer::Fragment| {
+        Some(Vec3::new(f.world.x * 0.3 + 0.5, -f.world.z * 0.15, 0.2))
+    };
+    for t in [[0, 1, 2], [0, 2, 3]] {
+        a.triangle(t.map(|i| v[i]), true, shade);
+    }
+    for t in [[0, 1, 3], [1, 2, 3]] {
+        b.triangle(t.map(|i| v[i]), true, shade);
+    }
+    let diffs = a
+        .pixels
+        .iter()
+        .zip(&b.pixels)
+        .filter(|(a, b)| {
+            [0, 8, 16]
+                .iter()
+                .any(|s| (((*a >> s) & 255) as i32 - ((*b >> s) & 255) as i32).abs() > 1)
+        })
+        .count();
+    assert!(diffs < 4, "pixels varying with triangulation: {diffs}");
+}
+
+#[test]
+fn geometry_crossing_near_plane_is_clipped_and_remains_visible() {
+    let matrix = Mat4::perspective_rh_gl(65.0f32.to_radians(), 1.0, 0.1, 100.0);
+    let vertices = [
+        Vec3::new(-0.5, -0.5, -1.0),
+        Vec3::new(0.5, -0.5, -1.0),
+        Vec3::new(0.0, 0.2, 0.05),
+    ]
+    .map(|p| vertex(p, matrix));
+    let mut f = Framebuffer::new(64, 64);
+    f.triangle(vertices, true, |_| Some(Vec3::ONE));
+    assert!(f.stats.fragments > 100);
+    assert!(f
+        .depth
+        .iter()
+        .all(|d| d.is_infinite() || (*d >= 0.0 && *d <= 1.0)));
+}
+
+#[test]
+fn depth_and_fragment_discard_do_not_depend_on_draw_order() {
+    let triangle = |z| {
+        [
+            Vec4::new(-0.8, -0.8, z, 1.0),
+            Vec4::new(0.8, -0.8, z, 1.0),
+            Vec4::new(0.0, 0.8, z, 1.0),
+        ]
+        .map(|clip| ClipVertex {
+            clip,
+            object: Vec3::ZERO,
+            world: Vec3::ZERO,
+            normal: Vec3::Z,
+        })
+    };
+    let mut a = Framebuffer::new(32, 32);
+    let mut b = Framebuffer::new(32, 32);
+    a.triangle(triangle(0.4), true, |_| Some(Vec3::X));
+    a.triangle(triangle(-0.4), true, |_| Some(Vec3::Y));
+    b.triangle(triangle(-0.4), true, |_| Some(Vec3::Y));
+    b.triangle(triangle(0.4), true, |_| Some(Vec3::X));
+    assert_eq!(a.pixels, b.pixels);
+    let before = a.pixels.clone();
+    a.triangle(triangle(-0.7), true, |_| None);
+    assert_eq!(a.pixels, before);
 }
