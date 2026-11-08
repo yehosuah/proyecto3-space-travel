@@ -10,6 +10,7 @@ pub enum Body {
     Star,
     Rocky,
     Gas,
+    Moon,
     Ring,
     Ship,
     Prop,
@@ -50,6 +51,7 @@ pub fn shade(f: Fragment, u: &Uniforms) -> Option<Vec3> {
         Body::Star => star(f, u),
         Body::Rocky => rocky(f, u),
         Body::Gas => gas(f, u),
+        Body::Moon => moon(f, u),
         Body::Ring => return ring(f, u),
         Body::Ship => {
             let diffuse = lit(u.tint, f);
@@ -234,6 +236,17 @@ fn gas(f: Fragment, u: &Uniforms) -> Vec3 {
         }
     }
     result + atmosphere
+}
+
+fn moon(f: Fragment, u: &Uniforms) -> Vec3 {
+    let p = f.object.normalize();
+    let n = fbm(p * 10.0, 4);
+    let pits = 1.0 - smooth(0.025, 0.075, (noise(p * 26.0) - 0.37).abs());
+    let mut c = rgb(0.24, 0.29, 0.34).lerp(rgb(0.75, 0.79, 0.76), n);
+    c *= 1.0 - pits * 0.30;
+    let meridian = (p.x.atan2(p.z) * 6.0 + p.y * 3.0).sin();
+    c = c.lerp(rgb(0.95, 0.54, 0.13), smooth(0.987, 0.999, meridian) * 0.75);
+    lit(c, f) + rgb(0.10, 0.16, 0.23) * rim(f, u) * 0.2 * (u.layers as f32 / 4.0)
 }
 
 pub fn ring_density(r: f32) -> f32 {
