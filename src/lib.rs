@@ -5,6 +5,7 @@ pub mod material_field;
 pub mod mesh;
 pub mod noise;
 pub mod normal_map;
+pub mod race;
 pub mod shader;
 pub mod simulation;
 pub mod sky;
