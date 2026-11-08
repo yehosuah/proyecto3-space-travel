@@ -1,4 +1,5 @@
 use cosmos_gp::{
+    camera::Camera,
     framebuffer::{ClipVertex, Framebuffer},
     simulation::{look_rotation, Flight, Input},
     world,
@@ -194,4 +195,35 @@ fn depth_and_fragment_discard_do_not_depend_on_draw_order() {
     let before = a.pixels.clone();
     a.triangle(triangle(-0.7), true, |_| None);
     assert_eq!(a.pixels, before);
+}
+
+#[test]
+fn camera_culling_keeps_intersecting_spheres() {
+    let camera = Camera {
+        position: Vec3::ZERO,
+        rotation: glam::Quat::IDENTITY,
+        fov: 60.0f32.to_radians(),
+        front: true,
+    };
+    assert!(camera.sphere_visible(Vec3::new(0.0, 0.0, -10.0), 1.0, 1.6));
+    assert!(!camera.sphere_visible(Vec3::new(0.0, 0.0, 10.0), 1.0, 1.6));
+    assert!(camera.sphere_visible(Vec3::new(0.0, 0.0, 0.2), 2.0, 1.6));
+    assert!(!camera.sphere_visible(Vec3::new(40.0, 0.0, -10.0), 1.0, 1.6));
+}
+
+#[test]
+fn own_projection_maps_near_far_and_horizontal_edge() {
+    let c = Camera {
+        position: Vec3::ZERO,
+        rotation: glam::Quat::IDENTITY,
+        fov: 60.0f32.to_radians(),
+        front: true,
+    };
+    let matrix = c.matrix(1.6);
+    for (depth, expected) in [(0.4, -1.0), (20000.0, 1.0)] {
+        let p = matrix * Vec4::new(0.0, 0.0, -depth, 1.0);
+        assert!((p.z / p.w - expected).abs() < 0.00001);
+    }
+    let p = matrix * Vec4::new(10.0 * (c.fov / 2.0).tan() * 1.6, 0.0, -10.0, 1.0);
+    assert!((p.x / p.w - 1.0).abs() < 0.00001);
 }
