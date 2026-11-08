@@ -1,0 +1,11 @@
+{
+  "duration_seconds": 67.067,
+  "frames": 2012,
+  "fps": 30,
+  "minimum_altitude": 35.3700,
+  "final_altitude": 675.0307,
+  "orbit_degrees": 362.3531,
+  "maximum_step_distance": 2.5336,
+  "impacts": 0,
+  "capture": "deterministic inputs through the same flight simulation"
+}
