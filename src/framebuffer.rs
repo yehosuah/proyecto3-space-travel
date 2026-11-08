@@ -1,3 +1,4 @@
+use crate::shader::{self, Uniforms};
 use glam::{Vec3, Vec4};
 
 #[derive(Clone, Copy, Debug)]
@@ -60,6 +61,8 @@ pub struct Framebuffer {
     pub pixels: Vec<u32>,
     pub depth: Vec<f32>,
     pub stats: Stats,
+    pub workers: usize,
+    queue: Vec<(Prepared, Uniforms)>,
 }
 impl Framebuffer {
     pub fn new(width: usize, height: usize) -> Self {
@@ -69,11 +72,17 @@ impl Framebuffer {
             pixels: vec![0; width * height],
             depth: vec![f32::INFINITY; width * height],
             stats: Stats::default(),
+            workers: std::thread::available_parallelism()
+                .map(|n| n.get())
+                .unwrap_or(4)
+                .clamp(1, 6),
+            queue: Vec::new(),
         }
     }
     pub fn clear_depth(&mut self) {
         self.depth.fill(f32::INFINITY);
         self.stats = Stats::default();
+        self.queue.clear();
     }
     pub fn triangle(
         &mut self,
@@ -89,6 +98,47 @@ impl Framebuffer {
                     raster_region(&t, &mut self.pixels, &mut self.depth, self.width, 0, &shade);
             }
         });
+    }
+    pub fn submit(&mut self, vertices: [ClipVertex; 3], two_sided: bool, uniforms: Uniforms) {
+        self.stats.triangles_submitted += 1;
+        clip_triangles(vertices, |vertices| {
+            if let Some(t) = prepare(vertices, two_sided, self.width, self.height) {
+                self.stats.triangles_rasterized += 1;
+                self.queue.push((t, uniforms));
+            }
+        });
+    }
+    /// Cada hilo posee filas disjuntas de color y profundidad. No hay escrituras compartidas.
+    pub fn flush(&mut self) {
+        let rows = self.height.div_ceil(self.workers.max(1));
+        let width = self.width;
+        let queue = &self.queue;
+        let fragments = std::thread::scope(|scope| {
+            let mut handles = Vec::new();
+            for (band, (pixels, depth)) in self
+                .pixels
+                .chunks_mut(rows * width)
+                .zip(self.depth.chunks_mut(rows * width))
+                .enumerate()
+            {
+                handles.push(scope.spawn(move || {
+                    let mut fragments = 0;
+                    for (triangle, u) in queue {
+                        fragments +=
+                            raster_region(triangle, pixels, depth, width, band * rows, &|f| {
+                                shader::shade(f, u)
+                            });
+                    }
+                    fragments
+                }));
+            }
+            handles
+                .into_iter()
+                .map(|h| h.join().expect("raster worker failed"))
+                .sum::<u64>()
+        });
+        self.stats.fragments += fragments;
+        self.queue.clear();
     }
     pub fn write_png(&self, path: impl AsRef<std::path::Path>) -> image::ImageResult<()> {
         image::RgbImage::from_fn(self.width as u32, self.height as u32, |x, y| {
