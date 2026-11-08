@@ -1,9 +1,27 @@
 use cosmos_gp::{
     race::{self, Phase, Race},
     simulation::Flight,
-    world,
+    surface, world,
 };
 use glam::Vec3;
+
+#[test]
+fn surface_distribution_is_seeded_and_rotates_with_the_planet() {
+    let a = surface::distribute(2026);
+    assert_eq!(a, surface::distribute(2026));
+    assert_ne!(a, surface::distribute(2027));
+    assert!(a.len() > 100);
+    for k in 0..4 {
+        assert!(a.iter().any(|i| i.kind == k));
+    }
+    let p = world::planet(0, 47.0);
+    for i in a {
+        let b = i.body(p);
+        let local = p.rotation.conjugate() * (b.center - p.center);
+        assert!(local.normalize().distance(i.direction) < 0.0001);
+        assert!((b.rotation * Vec3::Y).distance(p.rotation * i.direction) < 0.0001);
+    }
+}
 
 #[test]
 fn gate_requires_forward_crossing_inside_aperture() {
