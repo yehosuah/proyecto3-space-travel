@@ -1,4 +1,5 @@
 use cosmos_gp::{
+    audio::Synth,
     normal_map,
     race::{self, Phase, Race},
     simulation::Flight,
@@ -104,4 +105,15 @@ fn tangent_map_is_finite_and_nonflat() {
         }
     }
     assert!(varied > 70);
+}
+
+#[test]
+fn propulsion_pcm_is_bounded_and_reacts_to_power() {
+    let mut idle = vec![0.0; 48000];
+    let mut boost = idle.clone();
+    Synth::default().fill(&mut idle, 0.0, 0.0, 0.0, true);
+    Synth::default().fill(&mut boost, 150.0, 1.0, 1.0, true);
+    let energy = |s: &[f32]| s.iter().map(|x| x * x).sum::<f32>();
+    assert!(energy(&boost) > energy(&idle) * 4.0);
+    assert!(boost.iter().all(|v| v.is_finite() && v.abs() <= 0.8));
 }
