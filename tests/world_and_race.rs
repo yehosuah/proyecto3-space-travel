@@ -1,4 +1,5 @@
 use cosmos_gp::{
+    normal_map,
     race::{self, Phase, Race},
     simulation::Flight,
     surface, world,
@@ -87,4 +88,20 @@ fn race_needs_ordered_full_lap_and_persists_best() {
     let loaded = Race::load(&path);
     assert!((loaded.best.unwrap() - r.best.unwrap()).abs() < 0.00001);
     std::fs::remove_file(path).unwrap();
+}
+
+#[test]
+fn tangent_map_is_finite_and_nonflat() {
+    normal_map::initialize();
+    let mut varied = 0;
+    for i in 0..100 {
+        let a = i as f32 * 0.063;
+        let n = normal_map::sample(Vec3::new(a.cos(), 0.2, a.sin()).normalize());
+        assert!(n.is_finite());
+        assert!((n.length() - 1.0).abs() < 0.001);
+        if n.x.abs() + n.y.abs() > 0.05 {
+            varied += 1;
+        }
+    }
+    assert!(varied > 70);
 }
